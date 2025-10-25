@@ -4,7 +4,7 @@
 import { Episode, NewEpisodeData } from '../types';
 
 // Vercel configuration
-const VERCEL_API_URL = 'https://your-app.vercel.app/api'; // Replace with your Vercel URL
+const VERCEL_API_URL = 'https://my-podcast-platform.vercel.app/api';
 
 // Helper function to convert File to base64
 const fileToBase64 = (file: File): Promise<string> => {
