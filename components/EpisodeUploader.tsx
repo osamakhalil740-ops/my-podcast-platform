@@ -59,10 +59,10 @@ const EpisodeUploader: React.FC<EpisodeUploaderProps> = ({ onEpisodeAdded }) => 
       // Simulate progress for better UX
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
-          if (prev >= 90) return prev; // Stop at 90% to avoid getting stuck
-          return prev + Math.random() * 5;
+          if (prev >= 95) return prev; // Stop at 95% to avoid getting stuck
+          return prev + Math.random() * 3;
         });
-      }, 200);
+      }, 100);
 
       await onEpisodeAdded(newEpisode);
       
@@ -101,7 +101,13 @@ const EpisodeUploader: React.FC<EpisodeUploaderProps> = ({ onEpisodeAdded }) => 
         return;
       }
       
-      setError(`Failed to save episode. ${errorMessage}`);
+      if (errorMessage.includes('timeout')) {
+        setError(`Upload timed out. Please try again with a smaller file.`);
+      } else if (errorMessage.includes('Supabase error')) {
+        setError(`Database error. Please check your internet connection.`);
+      } else {
+        setError(`Failed to save episode. ${errorMessage}`);
+      }
       setUploadProgress(0);
       setRetryCount(0);
     } finally {
@@ -160,9 +166,15 @@ const EpisodeUploader: React.FC<EpisodeUploaderProps> = ({ onEpisodeAdded }) => 
           </div>
         )}
         
-        {isLoading && uploadProgress > 80 && (
+        {isLoading && uploadProgress > 90 && (
           <div className="text-blue-400 text-sm text-center mb-2">
-            💾 Saving episode...
+            💾 Saving episode to Supabase...
+          </div>
+        )}
+        
+        {isLoading && uploadProgress > 70 && uploadProgress <= 90 && (
+          <div className="text-yellow-400 text-sm text-center mb-2">
+            🔄 Processing audio file...
           </div>
         )}
         

@@ -6,7 +6,7 @@ import AudioPlayer from './components/AudioPlayer';
 import AdminPage from './pages/AdminPage';
 import ListenerPage from './pages/ListenerPage';
 import LoginModal from './components/LoginModal';
-import { getAllEpisodes, addEpisode, deleteEpisode } from './services/vercelStorage';
+import { getAllEpisodes, addEpisode, deleteEpisode, testConnection } from './services/supabaseStorage';
 
 type View = 'listener' | 'admin';
 
@@ -19,14 +19,25 @@ const App: React.FC = () => {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  // Load episodes from Firebase on mount
+  // Load episodes from Supabase on mount
   useEffect(() => {
     const fetchEpisodes = async () => {
       try {
-        const loadedEpisodes = await getAllEpisodes();
-        setEpisodes(loadedEpisodes);
+        // Test connection first
+        console.log('Testing Supabase connection...');
+        const isConnected = await testConnection();
+        
+        if (isConnected) {
+          console.log('Supabase connected, loading episodes...');
+          const loadedEpisodes = await getAllEpisodes();
+          setEpisodes(loadedEpisodes);
+        } else {
+          console.log('Supabase not connected, using local storage...');
+          const loadedEpisodes = await getAllEpisodes();
+          setEpisodes(loadedEpisodes);
+        }
       } catch (error: any) {
-        console.error("Failed to load episodes from Vercel storage.", error.message || String(error));
+        console.error("Failed to load episodes from Supabase.", error.message || String(error));
       } finally {
         setIsLoading(false);
       }
