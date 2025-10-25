@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Storage Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        button { background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #45a049; }
+        input[type="file"] { margin: 10px 0; }
+        #status { margin: 10px 0; padding: 10px; background: #e7f3ff; border-radius: 5px; }
+        .episode { border: 1px solid #ddd; margin: 10px 0; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Local Storage Test</h1>
+        <p>اختبار قاعدة البيانات المحلية</p>
+        
+        <input type="file" id="audioFile" accept="audio/*">
+        <br>
+        <input type="text" id="title" placeholder="عنوان الحلقة" style="width: 100%; padding: 8px; margin: 5px 0;">
+        <br>
+        <textarea id="description" placeholder="وصف الحلقة" style="width: 100%; padding: 8px; margin: 5px 0; height: 60px;"></textarea>
+        <br>
+        
+        <button onclick="addEpisode()">إضافة حلقة</button>
+        <button onclick="loadEpisodes()">تحميل الحلقات</button>
+        <button onclick="clearAll()">مسح الكل</button>
+        
+        <div id="status"></div>
+        <div id="episodes"></div>
+    </div>
+
+    <script>
+        const DB_NAME = 'TestPodcastDB';
+        const DB_VERSION = 1;
+        const EPISODES_STORE = 'episodes';
+        let db = null;
+
+        // Initialize database
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onerror = () => {
+                    reject(request.error);
+                };
+
+                request.onsuccess = () => {
+                    db = request.result;
+                    resolve();
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    if (!database.objectStoreNames.contains(EPISODES_STORE)) {
+                        database.createObjectStore(EPISODES_STORE, { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+            });
+        }
+
+        // Add episode
+        async function addEpisode() {
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const fileInput = document.getElementById('audioFile');
+            
+            if (!title || !description || !fileInput.files[0]) {
+                updateStatus('يرجى ملء جميع الحقول واختيار ملف صوتي', 'error');
+                return;
+            }
+
+            try {
+                if (!db) await initDB();
+                
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async () => {
+                    const transaction = db.transaction([EPISODES_STORE], 'readwrite');
+                    const store = transaction.objectStore(EPISODES_STORE);
+                    
+                    const episode = {
+                        title: title,
+                        description: description,
+                        audioData: reader.result,
+                        audioType: file.type,
+                        audioName: file.name,
+                        createdAt: Date.now()
+                    };
+                    
+                    const request = store.add(episode);
+                    request.onsuccess = () => {
+                        updateStatus('تم إضافة الحلقة بنجاح!', 'success');
+                        document.getElementById('title').value = '';
+                        document.getElementById('description').value = '';
+                        document.getElementById('audioFile').value = '';
+                    };
+                    request.onerror = () => {
+                        updateStatus('خطأ في إضافة الحلقة', 'error');
+                    };
+                };
+                
+                reader.readAsArrayBuffer(file);
+            } catch (error) {
+                updateStatus('خطأ: ' + error.message, 'error');
+            }
+        }
+
+        // Load episodes
+        async function loadEpisodes() {
+            try {
+                if (!db) await initDB();
+                
+                const transaction = db.transaction([EPISODES_STORE], 'readonly');
+                const store = transaction.objectStore(EPISODES_STORE);
+                const request = store.getAll();
+                
+                request.onsuccess = () => {
+                    const episodes = request.result;
+                    displayEpisodes(episodes);
+                    updateStatus(`تم تحميل ${episodes.length} حلقة`, 'success');
+                };
+                
+                request.onerror = () => {
+                    updateStatus('خطأ في تحميل الحلقات', 'error');
+                };
+            } catch (error) {
+                updateStatus('خطأ: ' + error.message, 'error');
+            }
+        }
+
+        // Display episodes
+        function displayEpisodes(episodes) {
+            const container = document.getElementById('episodes');
+            container.innerHTML = '';
+            
+            episodes.forEach(episode => {
+                const blob = new Blob([episode.audioData], { type: episode.audioType });
+                const audioUrl = URL.createObjectURL(blob);
+                
+                const episodeDiv = document.createElement('div');
+                episodeDiv.className = 'episode';
+                episodeDiv.innerHTML = `
+                    <h3>${episode.title}</h3>
+                    <p>${episode.description}</p>
+                    <audio controls>
+                        <source src="${audioUrl}" type="${episode.audioType}">
+                    </audio>
+                    <br><small>تم الإنشاء: ${new Date(episode.createdAt).toLocaleString('ar-EG')}</small>
+                `;
+                container.appendChild(episodeDiv);
+            });
+        }
+
+        // Clear all episodes
+        async function clearAll() {
+            if (confirm('هل أنت متأكد من مسح جميع الحلقات؟')) {
+                try {
+                    if (!db) await initDB();
+                    
+                    const transaction = db.transaction([EPISODES_STORE], 'readwrite');
+                    const store = transaction.objectStore(EPISODES_STORE);
+                    const request = store.clear();
+                    
+                    request.onsuccess = () => {
+                        updateStatus('تم مسح جميع الحلقات', 'success');
+                        document.getElementById('episodes').innerHTML = '';
+                    };
+                } catch (error) {
+                    updateStatus('خطأ في مسح الحلقات', 'error');
+                }
+            }
+        }
+
+        // Update status
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.background = type === 'error' ? '#ffebee' : '#e8f5e8';
+            status.style.color = type === 'error' ? '#c62828' : '#2e7d32';
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            updateStatus('جاهز للاستخدام', 'success');
+        };
+    </script>
+</body>
+</html>

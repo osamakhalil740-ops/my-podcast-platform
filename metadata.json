@@ -1,0 +1,5 @@
+{
+  "name": "My Podcast Platform",
+  "description": "A platform for uploading and listening to your own podcast episodes.",
+  "requestFramePermissions": []
+}

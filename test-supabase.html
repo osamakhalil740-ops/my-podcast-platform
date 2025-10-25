@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Test</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        button { background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #45a049; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        #status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .episode { border: 1px solid #ddd; margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .error { background: #ffebee; color: #c62828; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Supabase Test</h1>
+        <p>اختبار Supabase للتخزين الدائم</p>
+        
+        <div>
+            <label>Supabase URL:</label>
+            <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+        </div>
+        
+        <div>
+            <label>Supabase Key:</label>
+            <input type="text" id="supabaseKey" placeholder="your-anon-key">
+        </div>
+        
+        <button onclick="initSupabase()">توصيل Supabase</button>
+        
+        <hr>
+        
+        <input type="file" id="audioFile" accept="audio/*">
+        <input type="text" id="title" placeholder="عنوان الحلقة">
+        <textarea id="description" placeholder="وصف الحلقة" rows="3"></textarea>
+        
+        <button onclick="addEpisode()">إضافة حلقة</button>
+        <button onclick="loadEpisodes()">تحميل الحلقات</button>
+        <button onclick="clearAll()">مسح الكل</button>
+        
+        <div id="status"></div>
+        <div id="episodes"></div>
+    </div>
+
+    <script>
+        let supabase = null;
+
+        function initSupabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            
+            if (!url || !key) {
+                updateStatus('يرجى إدخال URL و Key', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                updateStatus('تم توصيل Supabase بنجاح!', 'success');
+            } catch (error) {
+                updateStatus('خطأ في التوصيل: ' + error.message, 'error');
+            }
+        }
+
+        async function addEpisode() {
+            if (!supabase) {
+                updateStatus('يرجى توصيل Supabase أولاً', 'error');
+                return;
+            }
+
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const fileInput = document.getElementById('audioFile');
+            
+            if (!title || !description || !fileInput.files[0]) {
+                updateStatus('يرجى ملء جميع الحقول', 'error');
+                return;
+            }
+
+            try {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async () => {
+                    const audioData = reader.result;
+                    
+                    const { data, error } = await supabase
+                        .from('episodes')
+                        .insert([{
+                            title: title,
+                            description: description,
+                            audio_data: audioData,
+                            audio_type: file.type,
+                            audio_name: file.name,
+                            file_size: file.size,
+                            created_at: new Date().toISOString()
+                        }]);
+
+                    if (error) {
+                        updateStatus('خطأ في إضافة الحلقة: ' + error.message, 'error');
+                    } else {
+                        updateStatus('تم إضافة الحلقة بنجاح!', 'success');
+                        document.getElementById('title').value = '';
+                        document.getElementById('description').value = '';
+                        document.getElementById('audioFile').value = '';
+                    }
+                };
+                
+                reader.readAsDataURL(file);
+            } catch (error) {
+                updateStatus('خطأ: ' + error.message, 'error');
+            }
+        }
+
+        async function loadEpisodes() {
+            if (!supabase) {
+                updateStatus('يرجى توصيل Supabase أولاً', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase
+                    .from('episodes')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    updateStatus('خطأ في تحميل الحلقات: ' + error.message, 'error');
+                    return;
+                }
+
+                displayEpisodes(data);
+                updateStatus(`تم تحميل ${data.length} حلقة`, 'success');
+            } catch (error) {
+                updateStatus('خطأ: ' + error.message, 'error');
+            }
+        }
+
+        function displayEpisodes(episodes) {
+            const container = document.getElementById('episodes');
+            container.innerHTML = '';
+            
+            episodes.forEach(episode => {
+                const episodeDiv = document.createElement('div');
+                episodeDiv.className = 'episode';
+                episodeDiv.innerHTML = `
+                    <h3>${episode.title}</h3>
+                    <p>${episode.description}</p>
+                    <audio controls>
+                        <source src="${episode.audio_data}" type="${episode.audio_type}">
+                    </audio>
+                    <br><small>تم الإنشاء: ${new Date(episode.created_at).toLocaleString('ar-EG')}</small>
+                `;
+                container.appendChild(episodeDiv);
+            });
+        }
+
+        async function clearAll() {
+            if (!supabase) {
+                updateStatus('يرجى توصيل Supabase أولاً', 'error');
+                return;
+            }
+
+            if (confirm('هل أنت متأكد من مسح جميع الحلقات؟')) {
+                try {
+                    const { error } = await supabase
+                        .from('episodes')
+                        .delete()
+                        .neq('id', 0); // Delete all
+
+                    if (error) {
+                        updateStatus('خطأ في مسح الحلقات: ' + error.message, 'error');
+                    } else {
+                        updateStatus('تم مسح جميع الحلقات', 'success');
+                        document.getElementById('episodes').innerHTML = '';
+                    }
+                } catch (error) {
+                    updateStatus('خطأ: ' + error.message, 'error');
+                }
+            }
+        }
+
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = type;
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            updateStatus('جاهز للاستخدام - أدخل بيانات Supabase', 'success');
+        };
+    </script>
+</body>
+</html>

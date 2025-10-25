@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Storage Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        button { background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #45a049; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        #status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .episode { border: 1px solid #ddd; margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .error { background: #ffebee; color: #c62828; }
+        .info { background: #e3f2fd; color: #1565c0; }
+        .warning { background: #fff3e0; color: #ef6c00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐙 GitHub Storage Test</h1>
+        <p>اختبار التخزين على GitHub - متاح للجميع</p>
+        
+        <div class="warning">
+            <strong>⚠️ قبل البدء:</strong> تأكد من إعداد GitHub Token و Repository
+        </div>
+        
+        <div>
+            <label>GitHub Token:</label>
+            <input type="text" id="githubToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+        </div>
+        
+        <div>
+            <label>GitHub Username:</label>
+            <input type="text" id="githubUsername" placeholder="your_username">
+        </div>
+        
+        <div>
+            <label>Repository Name:</label>
+            <input type="text" id="githubRepo" placeholder="my-podcast-data" value="my-podcast-data">
+        </div>
+        
+        <button onclick="testConnection()">اختبار الاتصال</button>
+        
+        <hr>
+        
+        <input type="file" id="audioFile" accept="audio/*">
+        <input type="text" id="title" placeholder="عنوان الحلقة">
+        <textarea id="description" placeholder="وصف الحلقة" rows="3"></textarea>
+        
+        <button onclick="addEpisode()">إضافة حلقة</button>
+        <button onclick="loadEpisodes()">تحميل الحلقات</button>
+        <button onclick="clearAll()">مسح الكل</button>
+        
+        <div id="status"></div>
+        <div id="episodes"></div>
+    </div>
+
+    <script>
+        let githubConfig = {
+            token: '',
+            username: '',
+            repo: ''
+        };
+
+        function updateConfig() {
+            githubConfig.token = document.getElementById('githubToken').value;
+            githubConfig.username = document.getElementById('githubUsername').value;
+            githubConfig.repo = document.getElementById('githubRepo').value;
+        }
+
+        async function testConnection() {
+            updateConfig();
+            
+            if (!githubConfig.token || !githubConfig.username || !githubConfig.repo) {
+                updateStatus('يرجى ملء جميع الحقول', 'error');
+                return;
+            }
+
+            try {
+                const testUrl = `https://api.github.com/repos/${githubConfig.username}/${githubConfig.repo}`;
+                const response = await fetch(testUrl, {
+                    headers: {
+                        'Authorization': `token ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (response.ok) {
+                    updateStatus('✅ الاتصال بـ GitHub نجح!', 'success');
+                } else {
+                    updateStatus('❌ فشل الاتصال بـ GitHub', 'error');
+                }
+            } catch (error) {
+                updateStatus('❌ خطأ في الاتصال: ' + error.message, 'error');
+            }
+        }
+
+        async function addEpisode() {
+            updateConfig();
+            
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const fileInput = document.getElementById('audioFile');
+            
+            if (!title || !description || !fileInput.files[0]) {
+                updateStatus('يرجى ملء جميع الحقول واختيار ملف صوتي', 'error');
+                return;
+            }
+
+            if (!githubConfig.token || !githubConfig.username || !githubConfig.repo) {
+                updateStatus('يرجى إعداد GitHub أولاً', 'error');
+                return;
+            }
+
+            try {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async () => {
+                    const episode = {
+                        id: Date.now().toString(),
+                        title: title,
+                        description: description,
+                        audioData: reader.result, // base64
+                        audioType: file.type,
+                        audioName: file.name,
+                        fileSize: file.size,
+                        createdAt: Date.now()
+                    };
+
+                    // Upload to GitHub
+                    const filename = `episodes/${episode.id}.json`;
+                    const uploadUrl = `https://api.github.com/repos/${githubConfig.username}/${githubConfig.repo}/contents/${filename}`;
+                    
+                    const uploadData = {
+                        message: `Add episode: ${episode.title}`,
+                        content: btoa(JSON.stringify(episode, null, 2)),
+                        branch: 'main'
+                    };
+
+                    const response = await fetch(uploadUrl, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${githubConfig.token}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(uploadData)
+                    });
+
+                    if (response.ok) {
+                        updateStatus('✅ تم إضافة الحلقة بنجاح!', 'success');
+                        document.getElementById('title').value = '';
+                        document.getElementById('description').value = '';
+                        document.getElementById('audioFile').value = '';
+                    } else {
+                        updateStatus('❌ فشل في إضافة الحلقة', 'error');
+                    }
+                };
+                
+                reader.readAsDataURL(file);
+            } catch (error) {
+                updateStatus('❌ خطأ: ' + error.message, 'error');
+            }
+        }
+
+        async function loadEpisodes() {
+            updateConfig();
+            
+            if (!githubConfig.token || !githubConfig.username || !githubConfig.repo) {
+                updateStatus('يرجى إعداد GitHub أولاً', 'error');
+                return;
+            }
+
+            try {
+                const episodesUrl = `https://api.github.com/repos/${githubConfig.username}/${githubConfig.repo}/contents/episodes`;
+                
+                const response = await fetch(episodesUrl, {
+                    headers: {
+                        'Authorization': `token ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (!response.ok) {
+                    updateStatus('❌ فشل في تحميل الحلقات', 'error');
+                    return;
+                }
+
+                const files = await response.json();
+                const episodes = [];
+
+                for (const file of files) {
+                    if (file.name.endsWith('.json')) {
+                        try {
+                            const contentResponse = await fetch(file.download_url);
+                            const episodeData = await contentResponse.json();
+                            episodes.push(episodeData);
+                        } catch (error) {
+                            console.error(`Error loading episode ${file.name}:`, error);
+                        }
+                    }
+                }
+
+                displayEpisodes(episodes);
+                updateStatus(`✅ تم تحميل ${episodes.length} حلقة`, 'success');
+            } catch (error) {
+                updateStatus('❌ خطأ: ' + error.message, 'error');
+            }
+        }
+
+        function displayEpisodes(episodes) {
+            const container = document.getElementById('episodes');
+            container.innerHTML = '';
+            
+            episodes.forEach(episode => {
+                const episodeDiv = document.createElement('div');
+                episodeDiv.className = 'episode';
+                episodeDiv.innerHTML = `
+                    <h3>${episode.title}</h3>
+                    <p>${episode.description}</p>
+                    <audio controls>
+                        <source src="${episode.audioData}" type="${episode.audioType}">
+                    </audio>
+                    <br><small>تم الإنشاء: ${new Date(episode.createdAt).toLocaleString('ar-EG')}</small>
+                    <br><small>النوع: ${episode.audioType} | الحجم: ${Math.round(episode.fileSize / 1024 / 1024)} MB</small>
+                `;
+                container.appendChild(episodeDiv);
+            });
+        }
+
+        async function clearAll() {
+            if (confirm('هل أنت متأكد من مسح جميع الحلقات؟')) {
+                updateStatus('⚠️ هذه الميزة غير متاحة في الاختبار', 'warning');
+            }
+        }
+
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = type;
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            updateStatus('جاهز للاستخدام - أدخل بيانات GitHub', 'info');
+        };
+    </script>
+</body>
+</html>

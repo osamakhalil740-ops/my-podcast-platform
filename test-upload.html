@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Upload Test</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js"></script>
+</head>
+<body>
+    <h1>Firebase Upload Test</h1>
+    <input type="file" id="fileInput" accept="audio/*">
+    <button onclick="testUpload()">Test Upload</button>
+    <div id="status"></div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBgOFwWX9A8HCmMGutmU2o5C-HrcGB-4SY",
+            authDomain: "my-podcast-v2.firebaseapp.com",
+            projectId: "my-podcast-v2",
+            storageBucket: "my-podcast-v2.appspot.com",
+            messagingSenderId: "84678913209",
+            appId: "1:84678913209:web:5b29f4a16c34f50db93f68"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const firestore = firebase.firestore();
+        const storage = firebase.storage();
+
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const status = document.getElementById('status');
+            
+            if (!fileInput.files[0]) {
+                status.innerHTML = 'Please select a file';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            status.innerHTML = 'Testing upload...';
+
+            try {
+                // Test Storage
+                const storageRef = storage.ref('test/' + file.name);
+                const uploadResult = await storageRef.put(file);
+                status.innerHTML += '<br>Storage upload: SUCCESS';
+
+                // Test Firestore
+                await firestore.collection('test').add({
+                    name: file.name,
+                    size: file.size,
+                    timestamp: new Date()
+                });
+                status.innerHTML += '<br>Firestore write: SUCCESS';
+                status.innerHTML += '<br><strong>All tests passed! Firebase is working correctly.</strong>';
+
+            } catch (error) {
+                status.innerHTML += '<br>Error: ' + error.message;
+                console.error('Test failed:', error);
+            }
+        }
+    </script>
+</body>
+</html>
